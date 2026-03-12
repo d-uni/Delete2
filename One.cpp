@@ -1,3 +1,72 @@
+//head
+#ifndef BIGCLASS_H
+#define BIGCLASS_H
+
+class BigClass
+{
+public:
+    // Nested class declaration
+    class InnerClass
+    {
+    public:
+        InnerClass(double x, double y);
+
+        double getX() const;
+        double getY() const;
+
+    private:
+        double x_;
+        double y_;
+    };
+
+    // Method of the outer class
+    void process(const InnerClass& obj);
+};
+
+#endif
+
+
+//sourse
+#include "BigClass.h"
+
+//
+// Implementation of InnerClass
+//
+
+BigClass::InnerClass::InnerClass(double x, double y)
+    : x_(x), y_(y)
+{
+}
+
+double BigClass::InnerClass::getX() const
+{
+    return x_;
+}
+
+double BigClass::InnerClass::getY() const
+{
+    return y_;
+}
+
+//
+// Implementation of BigClass
+//
+
+void BigClass::process(const BigClass::InnerClass& obj)
+{
+    double x = obj.getX();
+    double y = obj.getY();
+
+    // Example operation
+    double result = x + y;
+
+    // Normally you would do something useful here
+}
+
+
+
+
+
 #include <vector>
 #include <utility>
 
