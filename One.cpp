@@ -1,3 +1,38 @@
+#include <vector>
+#include <utility>
+
+class Grid
+{
+public:
+    Grid(double xMin, double xMax, int nx,
+         double yMin, double yMax, int ny)
+    {
+        double dx = (xMax - xMin) / nx;
+        double dy = (yMax - yMin) / ny;
+
+        for (int i = 0; i <= nx; ++i)
+        {
+            double x = xMin + i * dx;
+
+            std::vector<std::pair<double, double>> temp_vec;
+
+            for (int j = 0; j <= ny; ++j)
+            {
+                double y = yMin + j * dy;
+                temp_vec.push_back({x, y});
+            }
+
+            points_.push_back(temp_vec);
+        }
+    }
+
+private:
+    std::vector<std::vector<std::pair<double, double>>> points_;
+};
+
+
+
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
