@@ -3,10 +3,11 @@
 #include <utility>  // For std::move
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 
-int NUMBER_OF_PARTICLES = 10; //param by default = ...
-int TIME_STEPS = 1000; //param by default = ...
+int NUMBER_OF_PARTICLES = 10000; //param by default = ...
+int TIME_STEPS = 365; //param by default = ...
 float EPSILON = 1e-5; //0.00001
 float LA = 1;
 
@@ -63,15 +64,21 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
     double P_tTm;
     double Level;
     double Weighted_Level;
+
+    std::vector<double> x_(NUMBER_OF_PARTICLES, 0);
+    std::vector<double> y_(NUMBER_OF_PARTICLES, 0);
+    std::vector<double> A_(NUMBER_OF_PARTICLES, 0);
+    double sum = 0;
     
     for (int i = 1; i <= total_time_steps; ++i) { // NOT TAKING INTO ACCOUNT THAT t0 = EPSILON =! 0
         ti = i*dt;
+
         for (int k = 0; k < prev_Strike_grid.size(); k++) {
-            sum = 0;
-            x = 0;
-            y = 0;
-            A = 0; // NOT FORGET
+            sum  = 0;
             for(int j = 0; j < NUMBER_OF_PARTICLES; ++j) {
+               double& x = x_[j];
+               double& y = y_[j];
+               double& A = A_[j];
                 sigma = get_vol_from_smile(prev_Strike_grid, prev_Vol_values, prev_s) / prev_dsdx;
                 x = x + (y - LA * x) * dt + sigma * random_val; //sqrt(dt)*W
                 y = y + (sigma * sigma - 2 * LA * y)* dt;
@@ -177,13 +184,13 @@ int main() {
     }
 
 
-
+/*
     //print grid and vol surface
     for (int i = 0; i < nx; ++i) {
         for (int j = 0; j < ny; ++j) {
             std::cout << "T: " << grid[i][j].first << ", K:" << grid[i][j].second << ", Vol: " << vol_surface[i][j] << std::endl;
         }
         std::cout << "-----------------------------" << std::endl;
-    }
+    }*/
     return 0;
 }
