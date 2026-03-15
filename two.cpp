@@ -6,7 +6,7 @@
 #include <chrono>
 
 
-int NUMBER_OF_PARTICLES = 10000; //param by default = ...
+int NUMBER_OF_PARTICLES = 100; //param by default = ...
 int TIME_STEPS = 365; //param by default = ...
 float EPSILON = 1e-5; //0.00001
 float LA = 1;
@@ -68,7 +68,6 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
     std::vector<double> x_(NUMBER_OF_PARTICLES, 0);
     std::vector<double> y_(NUMBER_OF_PARTICLES, 0);
     std::vector<double> A_(NUMBER_OF_PARTICLES, 0);
-    double sum = 0;
     
     for (int i = 1; i <= total_time_steps; ++i) { // NOT TAKING INTO ACCOUNT THAT t0 = EPSILON =! 0
         ti = i*dt;
@@ -120,7 +119,7 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
 
 
 int main() {
-
+    auto start = std::chrono::high_resolution_clock::now();
     //initialization (allocate memory once))
     double xMax = 10;
     double nx = 10;
@@ -192,5 +191,9 @@ int main() {
         }
         std::cout << "-----------------------------" << std::endl;
     }*/
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Execution time: " << elapsed.count() << " seconds\n";
+
     return 0;
 }
