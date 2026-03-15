@@ -5,19 +5,21 @@
 #include <algorithm>
 #include <chrono>
 
+////TRY WHEN WE FIX TERM === WRONG< WE want underlying cotermin. so we fix the final xMax, and simulate s(t, xMax-t) a,d not s(t, term)
 
 int NUMBER_OF_PARTICLES = 100; //param by default = ...
 int TIME_STEPS = 365; //param by default = ...
-float EPSILON = 1e-5; //0.00001
+float EPSILON = 1e-5; //0.00001 put inside calibrater-private: static constexpr double EPSILON = 1e-9;
+
 float LA = 1;
 
 
 double f0(double T) {
-    return 0.12; // Market instantaneous FR
+    return 0.12; // Market instantaneous forward rate
 }
 
 double P0(double T) {
-    return std::exp(T * 0.12); // Market ZCB
+    return std::exp(T * -0.12); // Market ZCB
 }
 
 double mm_part(double T, double K) {
@@ -35,8 +37,8 @@ double get_vol_from_smile(const std::vector<double>& strikes, const std::vector<
         return vols[i] + w*(vols[j] - vols[i]);
 }  
 
-// we will change prev_Strike_grid and prev_Vol_values inside , so they are NOT const 
-std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std::vector<double>& prev_Vol_values, double prev_s, double prev_dsdx,  double term, int total_time_steps, int NumberFromFixLegSchedule) { //calculate THETA 
+// we will change prev_Vol_values inside , so it is  NOT const 
+std::vector<double> mc_part(double T, const std::vector<double>& Strike_grid, const std::vector<double>& prev_Vol_values, double prev_s, double prev_dsdx,  double term, int total_time_steps, int NumberFromFixLegSchedule) { //calculate THETA 
     double dt = T / total_time_steps;
     double random_val= 1;
 
@@ -45,9 +47,9 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
         return (1 - std::exp(-LA*(t2 - t1))) / LA;
     };
 
-    double x = 0;
+ /* double x = 0;
     double y = 0;
-    double A = 0;
+    double A = 0; */
 
     double ti;
     double THETA;
@@ -68,17 +70,19 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
     std::vector<double> x_(NUMBER_OF_PARTICLES, 0);
     std::vector<double> y_(NUMBER_OF_PARTICLES, 0);
     std::vector<double> A_(NUMBER_OF_PARTICLES, 0);
+    std::vector<double> new_Vol_values(prev_Vol_values.size());
     
-    for (int i = 1; i <= total_time_steps; ++i) { // NOT TAKING INTO ACCOUNT THAT t0 = EPSILON =! 0
-        ti = i*dt;
+    for (int k = 0; k < Strike_grid.size(); k++) {
+        for (int i = 1; i <= total_time_steps; ++i) { // NOT TAKING INTO ACCOUNT THAT t0 = EPSILON =! 0
+            ti = i*dt;
 
-        for (int k = 0; k < prev_Strike_grid.size(); k++) {
-            sum  = 0;
+            sum  = 0; 
+            //все максимально убрать из цикла чтоь никаакие функции не вызывались 
             for(int j = 0; j < NUMBER_OF_PARTICLES; ++j) {
-               double& x = x_[j];
+               double& x = x_[j]; //rename si particles correspond thier path ? or just write x_[i] isted of x
                double& y = y_[j];
                double& A = A_[j];
-                sigma = get_vol_from_smile(prev_Strike_grid, prev_Vol_values, prev_s) / prev_dsdx;
+                sigma = get_vol_from_smile(Strike_grid, prev_Vol_values, prev_s) / prev_dsdx;
                 x = x + (y - LA * x) * dt + sigma * random_val; //sqrt(dt)*W
                 y = y + (sigma * sigma - 2 * LA * y)* dt;
                 r = x + f0(ti);
@@ -107,14 +111,16 @@ std::vector<double> mc_part(double T, std::vector<double>& prev_Strike_grid, std
                 f_tt_term = f0(ti+term) + std::exp(-LA*(term)) * (x + G(ti, ti+term) * y);
                 P_tt_term = P0(ti+term) / P0(ti) * std::exp(-G(ti, ti+term) * x - 1/2 * G(ti, ti+term) * G(ti, ti+term) * y);
 
-                sum += std::exp(-A) * (prev_s > prev_Strike_grid[k] ? (f_tt - f_tt_term*P_tt_term - prev_s*(1 - P_tt_term)) : 0);
+                sum += std::exp(-A) * (prev_s > Strike_grid[k] ? (f_tt - f_tt_term*P_tt_term - prev_s*(1 - P_tt_term)) : 0);
                 
             }
-            THETA = sum / NUMBER_OF_PARTICLES ;
-            prev_Vol_values[k] = THETA + mm_part(ti, prev_Strike_grid[k]);
+        
         }
+        THETA = sum / NUMBER_OF_PARTICLES ;
+        new_Vol_values[k] = THETA + mm_part(ti, Strike_grid[k]);
+
     }
-    return prev_Vol_values; //return vector of volatilities for each strike for given T, which is already updated with THETA
+    return new_Vol_values; //return vector of volatilities for each strike for given T, which is already updated with THETA
 }
 
 
@@ -126,7 +132,7 @@ int main() {
     double xMin = 0;
 
     double yMax;  //Get from CDF
-    double ny = 10;
+    double ny = 50;
     double yMin;  //Get from CDF 
 
     double dx = (xMax - xMin) / nx; //OR (xMax - xMin) / (nx - 1)
@@ -138,7 +144,7 @@ int main() {
     std::vector<double> Strike_grid(ny);
     std::vector<double> prev_Vol_values(ny);
 
-    double T;
+    double T;  // build sigma(T, K) surface
     double K;
     double term;
     double particle_dt;
@@ -157,23 +163,24 @@ int main() {
         yMax = 1; //Get from CDF
         dy = (yMax - yMin) / ny;  //not including right limit
 
-        // -------------- INITIALIZE  for MC part (same for any strike since we initialize the whole smile) + calculate MM part, 
+        // -------------- INITIALIZE  for MC part (same for any strike since we initialize the whole smile) + grid construction of STRIKE 
         //since we are alredy looping over T.
-        particle_dt = T / (i * TIME_STEPS); // CHANGE HERE IF T/(TIME_STEPS) !!
-        //write grid construction of STRIKE для Т = particle_dt один на всех, the maturity = delta  what is yMIN and yMAX?
-        for (int j = 0; j < ny; ++j) { 
+
+        for (int j = 0; j < ny; ++j) {  //overwrite prev_Vol_values
             K = yMin + j * dy;
             Strike_grid[j] = K;
-            prev_Vol_values[j] = mm_part(EPSILON, K); // INIZIALIZATION!! проверить ЧТО ОЧИСТИЛА PASS term ??? it is incide smiler EPSILON = expiry
+            prev_Vol_values[j] = mm_part(EPSILON, K); // INIZIALIZATION!! проверить ЧТО ОЧИСТИЛА PASS term ??? it is incide smiler EPSILON = expiry = 0
         }
         NumberFromFixLegSchedule = 2; // GET FROM PRODUCT for each swap 
-        double prev_s = 0.2; // FROM SMILER(expiry = ) get Swap value at  expiry = 0 !!!, term = xMax - T // todays swap spot swap   SPOT SWAP - TERM IS Fixed
-        double prev_dsdx = 0.01; // FROM SMILER(expiry = ) get dS/dx at expiry = 0, term = xMax - T// todays swap spot swap Use Market Curves 1/annnuity (....) 
+        prev_s = 0.2; // FROM SMILER(expiry = ) get Swap value at  expiry = 0 !!!, term = xMax - T // todays swap spot swap   SPOT SWAP - TERM IS Fixed
+        prev_dsdx = 0.01; // FROM SMILER(expiry = ) get dS/dx at expiry = 0, term = xMax - T// todays swap spot swap Use Market Curves 1/annnuity (....) 
                                 //implement inside PRODUCT! or calculate here using market curves
         // -------------- END OF INITIALIZATION
-        
+
+
         //--------------Get THETA curve for all strikes 
         const std::vector<double>& mc_part_ = mc_part(T, Strike_grid, prev_Vol_values, prev_s, prev_dsdx, term, i * TIME_STEPS, NumberFromFixLegSchedule); //Preserve term only, ,model rolloing (spot) swap?
+        
         for (int j = 0; j < ny; ++j) { 
             K = yMin + j * dy;
             mm_part_ = mm_part(T, K);
@@ -182,6 +189,8 @@ int main() {
         }
     }
 
+
+    //we can put second loop  vol_surface[i-1][j] = mm_part_ + mc_part_[j];  insside mc_part_ and compute mm_part(T, K); in Strike Grid construction
 
 /*
     //print grid and vol surface
